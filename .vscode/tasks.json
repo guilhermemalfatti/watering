@@ -1,0 +1,31 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Update supervisor configs",
+            "type": "shell",
+            "command": "sudo supervisorctl reread && sudo supervisorctl update",
+            "options": {
+                "cwd": "/etc/supervisor"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Restart supervisor program(watering)",
+            "type": "shell",
+            "command": "sudo supervisorctl restart watering",
+            "options": {
+                "cwd": "/etc/supervisor"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}
