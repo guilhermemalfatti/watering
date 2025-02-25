@@ -1,3 +1,5 @@
+import signal
+import sys
 from plugins.plugin_interface import PluginInterface
 import time
 from awscrt import mqtt, http
@@ -52,6 +54,20 @@ class PubSubService:
                 self._connection_ready.set()
 
                 print("Connected!")
+
+    def disconnect(self):
+        """Gracefully disconnect from MQTT broker"""
+        try:
+            if hasattr(self, 'mqtt_connection') and self.mqtt_connection:
+                print("\nDisconnecting from MQTT broker...")
+                disconnect_future = self.mqtt_connection.disconnect()
+                disconnect_future.result()  # Wait for disconnect to complete
+
+                self._connection_ready.clear()
+                PubSubService._initialized = False
+                print("Disconnected successfully")
+        except Exception as e:
+            print(f"Error during disconnect: {e}")
 
     def publish(self, topic, payload):
         self._ensure_connected()

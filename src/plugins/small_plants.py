@@ -6,7 +6,7 @@ import threading
 import time
 import json
 import gpiozero
-from shared.const import AWS_IOT_ENDPOINT, CERTIFICATE_PATH, CLIENT_ID,  PRIVATE_KEY_PATH, PUMP_GPIO, ROOT_CA_PATH, TOPIC_WATERING_SMALL, WateringAction
+from shared.const import PUMP_GPIO, TOPIC_WATERING_SMALL, TOPIC_DEVICE_LAST_WATERED, WateringAction
 import RPi.GPIO as GPIO
 
 from pubsub import PubSubService
@@ -28,6 +28,9 @@ class SmallPlantsWatering(PluginInterface):
         GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
         GPIO.setup(8, GPIO.OUT, initial=GPIO.LOW)
         print("Pump off")
+        pubsub_service = PubSubService()
+        pubsub_service.publish(TOPIC_DEVICE_LAST_WATERED, json.dumps(
+            {"timestamp": time.strftime('%Y-%m-%d %H:%M:%S')}))
 
     def turn_off_pump(self, ):
         print("Turning off pump")
@@ -63,13 +66,6 @@ class SmallPlantsWatering(PluginInterface):
             time.sleep(5)
 
         received_all_event.wait()
-        print("{} message(s) received.".format(received_count))
-
-        # Disconnect
-        print("Disconnecting...")
-        disconnect_future = mqtt_connection.disconnect()
-        disconnect_future.result()
-        print("Disconnected!")
 
 
 # unzip connect_device_package.zip
