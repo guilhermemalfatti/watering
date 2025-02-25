@@ -1,12 +1,12 @@
 from plugins.plugin_interface import PluginInterface
+from time import sleep
 import time
 from awscrt import mqtt, http
 from awsiot import mqtt_connection_builder
 import threading
-import time
 import json
 import gpiozero
-from shared.const import PUMP_GPIO, TOPIC_WATERING_SMALL, TOPIC_DEVICE_LAST_WATERED, WateringAction
+from shared.const import PUMP_GPIO, TOPIC_WATERING_STOPED, TOPIC_WATERING_STOP, TOPIC_WATERING_SMALL, TOPIC_DEVICE_LAST_WATERED, WateringAction
 import RPi.GPIO as GPIO
 
 from pubsub import PubSubService
@@ -16,56 +16,64 @@ received_all_event = threading.Event()
 
 class SmallPlantsWatering(PluginInterface):
 
-    def run_pump(self, seconds):
-        print(f"Running for {seconds} seconds")
-        # pumpRelay = gpiozero.OutputDevice(PUMP_GPIO, active_high=False,
-        #                                   initial_value=False)
+    def __init__(self):
+        self.is_watering = False
 
-        # pumpRelay.on()
-        # time.sleep(seconds)
-        # pumpRelay.off()
+    def run_pump(self, seconds):
+        self.is_watering = True
         GPIO.setwarnings(False)    # Ignore warning for now
         GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
-        GPIO.setup(8, GPIO.OUT, initial=GPIO.LOW)
-        print("Pump off")
+        GPIO.setup(PUMP_GPIO, GPIO.OUT, initial=True)
+
+        print(f"Running for {seconds} seconds")
+        GPIO.output(PUMP_GPIO, False)  # Turn on
+
+        sleep(seconds)
+
+        self.turn_off_pump()
+
+        sleep(1)
+
         pubsub_service = PubSubService()
         pubsub_service.publish(TOPIC_DEVICE_LAST_WATERED, json.dumps(
             {"timestamp": time.strftime('%Y-%m-%d %H:%M:%S')}))
 
-    def turn_off_pump(self, ):
-        print("Turning off pump")
-        pumpRelay = gpiozero.OutputDevice(PUMP_GPIO, active_high=False,
-                                          initial_value=False)
+    def turn_off_pump(self):
+        if self.is_watering:
+            print("Turning off pump")
+            GPIO.output(PUMP_GPIO, True)
+            self.is_watering = False
 
-        pumpRelay.off()
+            pubsub_service = PubSubService()
+            pubsub_service.publish(TOPIC_WATERING_STOPED, json.dumps(
+                {"status": "off"}))
+        else:
+            print("Pump is not running, no need to turn off")
 
     # Callback when the subscribed topic receives a message
-    def on_message_received(self, topic, payload, dup, qos, retain, **kwargs):
+    def on_start_event(self, topic, payload, dup, qos, retain, **kwargs):
         print("Received message from topic '{}': {}".format(topic, payload))
         try:
             message = json.loads(payload)
-            action = message["status"]
-            match action:
-                case WateringAction.ON.value:
-                    self.run_pump(message['seconds'])
-                case WateringAction.OFF.value:
-                    self.turn_off_pump()
-                case _:
-                    print(f"Unknown action: {action}")
+            self.run_pump(message['seconds'])
+        except json.JSONDecodeError as e:
+            print("Failed to decode JSON payload: {}".format(e))
+
+    def on_stop_event(self, topic, payload, dup, qos, retain, **kwargs):
+        print("Received message from topic '{}': {}".format(topic, payload))
+        try:
+            self.turn_off_pump()
         except json.JSONDecodeError as e:
             print("Failed to decode JSON payload: {}".format(e))
 
     def run(self):
         pubsub_service = PubSubService()
         pubsub_service.subscribe(TOPIC_WATERING_SMALL,
-                                 self.on_message_received)
-        # TODO this is just to keep it running forever, we might want implement something to be based on the message we stop the servie
-        while not received_all_event.is_set():
-            print(
-                f"{time.strftime('%Y-%m-%d %H:%M:%S')} - [small] waiting for a command!", flush=True)
-            time.sleep(5)
+                                 lambda *args, **kwargs: threading.Thread(target=self.on_start_event, args=args, kwargs=kwargs).start())
 
+        pubsub_service.subscribe(TOPIC_WATERING_STOP,
+                                 lambda *args, **kwargs: threading.Thread(target=self.on_stop_event, args=args, kwargs=kwargs).start())
+
+        print("[plugin-small] waiting for a command!")
         received_all_event.wait()
-
-
-# unzip connect_device_package.zip
+        print("[plugin-small] stopping the service!")
