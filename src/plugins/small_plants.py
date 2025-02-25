@@ -5,13 +5,34 @@ from awsiot import mqtt_connection_builder
 import threading
 import time
 import json
-
-from shared.const import AWS_IOT_ENDPOINT, CERTIFICATE_PATH, CLIENT_ID, MQTT_TOPIC, PRIVATE_KEY_PATH, ROOT_CA_PATH, WateringAction
+import gpiozero
+from shared.const import AWS_IOT_ENDPOINT, CERTIFICATE_PATH, CLIENT_ID,  PRIVATE_KEY_PATH, PUMP_GPIO, ROOT_CA_PATH, TOPIC_WATERING_SMALL, WateringAction
+import RPi.GPIO as GPIO
 
 received_all_event = threading.Event()
 
 
 class SmallPlantsWatering(PluginInterface):
+
+    def run_pump(self, seconds):
+        print(f"Running for {seconds} seconds")
+        # pumpRelay = gpiozero.OutputDevice(PUMP_GPIO, active_high=False,
+        #                                   initial_value=False)
+
+        # pumpRelay.on()
+        # time.sleep(seconds)
+        # pumpRelay.off()
+        GPIO.setwarnings(False)    # Ignore warning for now
+        GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
+        GPIO.setup(8, GPIO.OUT, initial=GPIO.LOW)
+        print("Pump off")
+
+    def turn_off_pump(self, ):
+        print("Turning off pump")
+        pumpRelay = gpiozero.OutputDevice(PUMP_GPIO, active_high=False,
+                                          initial_value=False)
+
+        pumpRelay.off()
 
     # Callback when the subscribed topic receives a message
     def on_message_received(self, topic, payload, dup, qos, retain, **kwargs):
@@ -21,9 +42,9 @@ class SmallPlantsWatering(PluginInterface):
             action = message["status"]
             match action:
                 case WateringAction.ON.value:
-                    print(f"Running for {message['seconds']} seconds")
+                    self.run_pump(message['seconds'])
                 case WateringAction.OFF.value:
-                    print(f"Turning off")
+                    self.turn_off_pump()
                 case _:
                     print(f"Unknown action: {action}")
         except json.JSONDecodeError as e:
@@ -54,12 +75,10 @@ class SmallPlantsWatering(PluginInterface):
         connect_future.result()
         print("Connected!")
 
-        message_topic = MQTT_TOPIC
-
         # Subscribe
-        print("Subscribing to topic '{}'...".format(message_topic))
+        print("Subscribing to topic '{}'...".format(TOPIC_WATERING_SMALL))
         subscribe_future, packet_id = mqtt_connection.subscribe(
-            topic=message_topic,
+            topic=TOPIC_WATERING_SMALL,
             qos=mqtt.QoS.AT_LEAST_ONCE,
             callback=self.on_message_received)
 
@@ -67,11 +86,10 @@ class SmallPlantsWatering(PluginInterface):
         print("Subscribed with {}".format(str(subscribe_result['qos'])))
 
         # Wait for all messages to be received.
-        # This waits forever if count was set to 0.
         if not received_all_event.is_set():
             print("Waiting for all messages to be received...")
 
-        # TODO this is just to keep it riunning forever, we might want implement something to based the message we stop the servie
+        # TODO this is just to keep it running forever, we might want implement something to be based on the message we stop the servie
         while not received_all_event.is_set():
             print(
                 f"{time.strftime('%Y-%m-%d %H:%M:%S')} - [small] waiting for a command!", flush=True)

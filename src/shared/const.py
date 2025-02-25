@@ -10,7 +10,12 @@ PRIVATE_KEY_PATH = "/home/water-project/watering/IOT-core-aws/rasp-water.private
 ROOT_CA_PATH = "/home/water-project/watering/IOT-core-aws/root-CA.crt"
 
 # MQTT Topic
-MQTT_TOPIC = "plants/watering/big"
+TOPIC_WATERING_SMALL = "plants/watering/small"
+TOPIC_WATERING_BUG = "plants/watering/big"
+TOPIC_WATERING_STOP = "plants/watering/stop"
+TOPIC_DEVICE_LAST_WATERED = "plants/device/lastWatered"
+TOPIC_DEVICE_PING = "plants/device/ping"
+TOPIC_DEVICE_PONG = "plants/device/pong"
 
 CLIENT_ID = "raspbery-pi"
 
@@ -18,3 +23,7 @@ CLIENT_ID = "raspbery-pi"
 class WateringAction(Enum):
     ON = "on"
     OFF = "off"
+
+
+# PUMP_GPIO = 4
+PUMP_GPIO = 7
