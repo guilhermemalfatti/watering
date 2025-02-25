@@ -5,20 +5,23 @@ import sys
 from plugins import load_plugins
 from pubsub import PubSubService
 from shared.const import AWS_IOT_ENDPOINT, CERTIFICATE_PATH, CLIENT_ID,  PRIVATE_KEY_PATH, PUMP_GPIO, ROOT_CA_PATH, TOPIC_WATERING_SMALL, WateringAction
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def run_plugin(plugin):
     try:
         plugin.run()
     except Exception as e:
-        print(f"Error running plugin {plugin}: {e}")
+        logging.info(f"Error running plugin {plugin}: {e}")
 
 
 def _setup_signal_handling():
     """Setup signal handlers for graceful shutdown"""
     def signal_handler(signum, frame):
         pubsub_service = PubSubService()
-        print(f"\nReceived signal {signum}")
+        logging.info(f"\nReceived signal {signum}")
         pubsub_service.disconnect()
         sys.exit(0)
 

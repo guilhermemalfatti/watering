@@ -15,6 +15,7 @@ TOPIC_WATERING_BUG = "plants/watering/big"
 TOPIC_WATERING_STOP = "plants/watering/stop"
 TOPIC_WATERING_STOPED = "plants/watering/stopped"
 TOPIC_DEVICE_LAST_WATERED = "plants/device/lastWatered"
+TOPIC_DEVICE_LAST_WATERED_GET = "plants/device/lastWatered/get"
 TOPIC_DEVICE_PING = "plants/device/ping"
 TOPIC_DEVICE_PONG = "plants/device/pong"
 

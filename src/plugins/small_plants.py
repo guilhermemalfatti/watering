@@ -1,23 +1,23 @@
 from plugins.plugin_interface import PluginInterface
 from time import sleep
 import time
-from awscrt import mqtt, http
-from awsiot import mqtt_connection_builder
 import threading
 import json
-import gpiozero
-from shared.const import PUMP_GPIO, TOPIC_WATERING_STOPED, TOPIC_WATERING_STOP, TOPIC_WATERING_SMALL, TOPIC_DEVICE_LAST_WATERED, WateringAction
+from shared.const import PUMP_GPIO, TOPIC_DEVICE_LAST_WATERED_GET, TOPIC_WATERING_STOPED, TOPIC_WATERING_STOP, TOPIC_WATERING_SMALL, TOPIC_DEVICE_LAST_WATERED
 import RPi.GPIO as GPIO
-
 from pubsub import PubSubService
+import logging
 
 received_all_event = threading.Event()
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class SmallPlantsWatering(PluginInterface):
 
     def __init__(self):
         self.is_watering = False
+        self.lastWatered = None
 
     def run_pump(self, seconds):
         self.is_watering = True
@@ -25,7 +25,7 @@ class SmallPlantsWatering(PluginInterface):
         GPIO.setmode(GPIO.BOARD)   # Use physical pin numbering
         GPIO.setup(PUMP_GPIO, GPIO.OUT, initial=True)
 
-        print(f"Running for {seconds} seconds")
+        logging.info(f"Running for {seconds} seconds")
         GPIO.output(PUMP_GPIO, False)  # Turn on
 
         sleep(seconds)
@@ -33,14 +33,14 @@ class SmallPlantsWatering(PluginInterface):
         self.turn_off_pump()
 
         sleep(1)
-
+        self.lastWatered = time.strftime('%Y-%m-%d %H:%M:%S')
         pubsub_service = PubSubService()
         pubsub_service.publish(TOPIC_DEVICE_LAST_WATERED, json.dumps(
-            {"timestamp": time.strftime('%Y-%m-%d %H:%M:%S')}))
+            {"timestamp": self.lastWatered}))
 
     def turn_off_pump(self):
         if self.is_watering:
-            print("Turning off pump")
+            logging.info("Turning off pump")
             GPIO.output(PUMP_GPIO, True)
             self.is_watering = False
 
@@ -48,23 +48,35 @@ class SmallPlantsWatering(PluginInterface):
             pubsub_service.publish(TOPIC_WATERING_STOPED, json.dumps(
                 {"status": "off"}))
         else:
-            print("Pump is not running, no need to turn off")
+            logging.warn("Pump is not running, no need to turn off")
 
     # Callback when the subscribed topic receives a message
     def on_start_event(self, topic, payload, dup, qos, retain, **kwargs):
-        print("Received message from topic '{}': {}".format(topic, payload))
+        logging.info(
+            "Received message from topic '{}': {}".format(topic, payload))
         try:
             message = json.loads(payload)
             self.run_pump(message['seconds'])
         except json.JSONDecodeError as e:
-            print("Failed to decode JSON payload: {}".format(e))
+            logging.error("Failed to decode JSON payload: {}".format(e))
 
     def on_stop_event(self, topic, payload, dup, qos, retain, **kwargs):
-        print("Received message from topic '{}': {}".format(topic, payload))
+        logging.info(
+            "Received message from topic '{}': {}".format(topic, payload))
         try:
             self.turn_off_pump()
         except json.JSONDecodeError as e:
-            print("Failed to decode JSON payload: {}".format(e))
+            logging.error("Failed to decode JSON payload: {}".format(e))
+
+    def on_get_last_watered_event(self, topic, payload, dup, qos, retain, **kwargs):
+        logging.info(
+            "Received message from topic '{}': {}".format(topic, payload))
+        try:
+            pubsub_service = PubSubService()
+            pubsub_service.publish(TOPIC_DEVICE_LAST_WATERED, json.dumps(
+                {"timestamp": self.lastWatered}))
+        except json.JSONDecodeError as e:
+            logging.error("Failed to decode JSON payload: {}".format(e))
 
     def run(self):
         pubsub_service = PubSubService()
@@ -74,6 +86,9 @@ class SmallPlantsWatering(PluginInterface):
         pubsub_service.subscribe(TOPIC_WATERING_STOP,
                                  lambda *args, **kwargs: threading.Thread(target=self.on_stop_event, args=args, kwargs=kwargs).start())
 
-        print("[plugin-small] waiting for a command!")
+        pubsub_service.subscribe(TOPIC_DEVICE_LAST_WATERED_GET,
+                                 lambda *args, **kwargs: threading.Thread(target=self.on_get_last_watered_event, args=args, kwargs=kwargs).start())
+
+        logging.info("[plugin-small] waiting for a command!")
         received_all_event.wait()
-        print("[plugin-small] stopping the service!")
+        logging.info("[plugin-small] stopping the service!")

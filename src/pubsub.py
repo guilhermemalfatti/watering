@@ -1,15 +1,12 @@
-import signal
 import sys
-from plugins.plugin_interface import PluginInterface
-import time
-from awscrt import mqtt, http
+from awscrt import mqtt
 from awsiot import mqtt_connection_builder
 import threading
-import time
-import json
-import gpiozero
-from shared.const import AWS_IOT_ENDPOINT, CERTIFICATE_PATH, CLIENT_ID,  PRIVATE_KEY_PATH, PUMP_GPIO, ROOT_CA_PATH, TOPIC_WATERING_SMALL, WateringAction
+from shared.const import AWS_IOT_ENDPOINT, CERTIFICATE_PATH, CLIENT_ID,  PRIVATE_KEY_PATH, PUMP_GPIO, ROOT_CA_PATH
 import RPi.GPIO as GPIO
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class PubSubService:
@@ -43,7 +40,7 @@ class PubSubService:
                     on_connection_failure=self.on_connection_failure,
                     on_connection_closed=self.on_connection_closed)
 
-                print(
+                logging.info(
                     f"Connecting to {AWS_IOT_ENDPOINT} with client ID '{CLIENT_ID}'...")
                 connect_future = self.mqtt_connection.connect()
 
@@ -53,21 +50,21 @@ class PubSubService:
                 self.initialized = True
                 self._connection_ready.set()
 
-                print("Connected!")
+                logging.info("Connected!")
 
     def disconnect(self):
         """Gracefully disconnect from MQTT broker"""
         try:
             if hasattr(self, 'mqtt_connection') and self.mqtt_connection:
-                print("\nDisconnecting from MQTT broker...")
+                logging.info("\nDisconnecting from MQTT broker...")
                 disconnect_future = self.mqtt_connection.disconnect()
                 disconnect_future.result()  # Wait for disconnect to complete
 
                 self._connection_ready.clear()
                 PubSubService._initialized = False
-                print("Disconnected successfully")
+                logging.info("Disconnected successfully")
         except Exception as e:
-            print(f"Error during disconnect: {e}")
+            logging.error(f"Error during disconnect: {e}")
 
     def publish(self, topic, payload):
         self._ensure_connected()
@@ -79,26 +76,27 @@ class PubSubService:
             )
             return response
         except Exception as e:
-            print(f"Error to publish: {e}")
+            logging.error(f"Error to publish: {e}")
             return None
 
     def subscribe(self, topic, callback):
         self._ensure_connected()
         try:
-            print("Subscribing to topic '{}'...".format(topic))
+            logging.info("Subscribing to topic '{}'...".format(topic))
             subscribe_future, packet_id = self.mqtt_connection.subscribe(
                 topic=topic,
                 qos=mqtt.QoS.AT_LEAST_ONCE,
                 callback=callback)
 
             subscribe_result = subscribe_future.result()
-            print("Subscribed with {}".format(str(subscribe_result['qos'])))
+            logging.info("Subscribed with {}".format(
+                str(subscribe_result['qos'])))
         except Exception as e:
-            print(f"Error to subscribe: {e} topic {topic}")
+            logging.error(f"Error to subscribe: {e} topic {topic}")
 
     def unsubscribe(self, topic):
         # Todo
-        print(f"Unsubscribed from {topic}")
+        logging.info(f"Unsubscribed from {topic}")
 
     def _ensure_connected(self):
         """Wait for connection to be ready before proceeding"""
@@ -106,16 +104,17 @@ class PubSubService:
 
     # Callback when connection is accidentally lost.
     def on_connection_interrupted(self, connection, error, **kwargs):
-        print("Connection interrupted. error: {}".format(error))
+        logging.error("Connection interrupted. error: {}".format(error))
 
     # Callback when an interrupted connection is re-established.
 
     def on_connection_resumed(self, connection, return_code, session_present, **kwargs):
-        print("Connection resumed. return_code: {} session_present: {}".format(
+        logging.info("Connection resumed. return_code: {} session_present: {}".format(
             return_code, session_present))
 
         if return_code == mqtt.ConnectReturnCode.ACCEPTED and not session_present:
-            print("Session did not persist. Resubscribing to existing topics...")
+            logging.info(
+                "Session did not persist. Resubscribing to existing topics...")
             resubscribe_future, _ = connection.resubscribe_existing_topics()
 
             # Cannot synchronously wait for resubscribe result because we're on the connection's event-loop thread,
@@ -124,7 +123,7 @@ class PubSubService:
 
     def on_resubscribe_complete(self, resubscribe_future):
         resubscribe_results = resubscribe_future.result()
-        print("Resubscribe results: {}".format(resubscribe_results))
+        logging.info("Resubscribe results: {}".format(resubscribe_results))
 
         for topic, qos in resubscribe_results['topics']:
             if qos is None:
@@ -133,19 +132,15 @@ class PubSubService:
     # Callback when the connection successfully connects
     def on_connection_success(self, connection, callback_data):
         assert isinstance(callback_data, mqtt.OnConnectionSuccessData)
-        print("Connection Successful with return code: {} session present: {}".format(
+        logging.info("Connection Successful with return code: {} session present: {}".format(
             callback_data.return_code, callback_data.session_present))
 
     # Callback when a connection attempt fails
     def on_connection_failure(self, connection, callback_data):
         assert isinstance(callback_data, mqtt.OnConnectionFailureData)
-        print("Connection failed with error code: {}".format(callback_data.error))
+        logging.error("Connection failed with error code: {}".format(
+            callback_data.error))
 
     # Callback when a connection has been disconnected or shutdown successfully
     def on_connection_closed(self, connection, callback_data):
-        print("Connection closed")
-
-# Example usage:
-# pubsub_service = PubSubService()
-# pubsub_service.publish('my/topic', 'Hello World')
-# pubsub_service.subscribe('my/topic', lambda x: print(x))
+        logging.info("Connection closed")
