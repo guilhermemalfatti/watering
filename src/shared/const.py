@@ -26,6 +26,6 @@ class WateringAction(Enum):
     ON = "on"
     OFF = "off"
 
-
-# PUMP_GPIO = 4
+# not in use for now
+PUMP_GPIO = 11
 PUMP_GPIO = 7
