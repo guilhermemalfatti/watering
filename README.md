@@ -70,3 +70,8 @@ For more information on Supervisor: [Supervisor as a Background Service Manager]
 - Store the running entries in a local DB like SQLite
 - Through AWS MQTT, cancel today's auto run
 - Notification system when water is running
+
+
+## Layout
+
+![image](https://github.com/user-attachments/assets/c08b02e9-530e-442b-ab94-82f00fea1ab8)
