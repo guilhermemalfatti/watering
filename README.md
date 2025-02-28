@@ -74,4 +74,5 @@ For more information on Supervisor: [Supervisor as a Background Service Manager]
 
 ## Layout
 
-![image](https://github.com/user-attachments/assets/c08b02e9-530e-442b-ab94-82f00fea1ab8)
+![image](https://github.com/user-attachments/assets/525ae1dd-12ba-4655-9130-7ae8dfbc11a6)
+
