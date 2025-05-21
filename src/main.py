@@ -14,7 +14,8 @@ def run_plugin(plugin):
     try:
         plugin.run()
     except Exception as e:
-        logging.info(f"Error running plugin {plugin}: {e}")
+        # raise an exception, let the app crash so the supervisor can restart it
+        raise Exception(f"Error running plugin {plugin}: {e}")
 
 
 def _setup_signal_handling():
