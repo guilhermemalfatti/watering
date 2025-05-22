@@ -14,6 +14,7 @@ def run_plugin(plugin):
     try:
         plugin.run()
     except Exception as e:
+        time.sleep(5)
         # raise an exception, let the app crash so the supervisor can restart it
         raise Exception(f"Error running plugin {plugin}: {e}")
 
